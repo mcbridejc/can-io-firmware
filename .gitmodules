@@ -1,0 +1,3 @@
+[submodule "lilos"]
+	path = lilos
+	url = https://github.com/mcbridejc/lilos

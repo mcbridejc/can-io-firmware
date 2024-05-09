@@ -1,0 +1,3 @@
+{
+    "rust-analyzer.linkedProjects": ["app/Cargo.toml", "dma/Cargo.toml"],
+}
