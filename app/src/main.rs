@@ -20,7 +20,6 @@ use fdcan::{
 use panic_probe as _;
 
 mod gpio;
-mod pwm;
 
 use gpio::Pin;
 
@@ -152,7 +151,8 @@ fn configure_adc() {
         w.set_ovse(true);
         // 16x oversample
         w.set_ovsr(3);
-        w.set_ovss(0);
+        // shift by 4 bits
+        w.set_ovss(4);
     });
 
     pac::ADC1.smpr().modify(|w| w.set_smp1(pac::adc::vals::SampleTime::CYCLES39_5));
