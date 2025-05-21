@@ -1,10 +1,7 @@
 //! General-purpose Input/Output (GPIO)
 
+#![allow(dead_code)]
 #![macro_use]
-use core::any::Any;
-use core::convert::Infallible;
-
-use critical_section::CriticalSection;
 
 use crate::pac::gpio::{self, vals};
 use crate::pac;
@@ -16,7 +13,7 @@ pub struct DynamicPin {
 
 /// Pull setting for an input.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(defmt::Format)]
 pub enum Pull {
     /// No pull
     None,
@@ -42,8 +39,7 @@ impl From<Pull> for vals::Pupdr {
 ///
 /// These vary dpeending on the chip, ceck the reference manual or datasheet for details.
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Copy, Clone, defmt::Format)]
 pub enum Speed {
     Low,
     Medium,
@@ -78,7 +74,7 @@ impl Pin for DynamicPin {
 
 /// Digital input or output level.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(defmt::Format)]
 pub enum Level {
     /// Low
     Low,
@@ -116,7 +112,7 @@ pub enum OutputType {
 
 /// Alternate function type settings
 #[derive(Debug, Copy, Clone)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(defmt::Format)]
 pub enum AFType {
     /// Input
     Input,
@@ -127,6 +123,7 @@ pub enum AFType {
 }
 
 
+#[allow(dead_code)]
 pub trait Pin: Into<DynamicPin> + PinPort +  Sized + 'static {
     #[inline]
     fn _pin(&self) -> u8 {
@@ -322,7 +319,7 @@ pub type PD13 = Gpio<{(3<<4) + 13}>;
 pub type PD14 = Gpio<{(3<<4) + 14}>;
 pub type PD15 = Gpio<{(3<<4) + 15}>;
 
-trait PinPort {
+pub trait PinPort {
     fn pin_port(&self) -> u8;
 }
 
@@ -342,7 +339,7 @@ impl<const PIN_PORT: u8> Pin for Gpio<PIN_PORT> {
 
 }
 
-#[allow(non_snake_case)]
+#[allow(non_snake_case, dead_code)]
 pub struct Gpios {
     pub PA0: PA0,
     pub PA1: PA1,

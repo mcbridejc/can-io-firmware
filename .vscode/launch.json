@@ -8,13 +8,12 @@
         "cwd": "${workspaceFolder}",
         "runtimeExecutable": "probe-rs",
         "runtimeArgs": ["dap-server"],
-        //!MODIFY
         "connectUnderReset": true,
         "chip": "STM32G0B1CBTx",
         "probe": "0483:3748",
         "flashingConfig": {
           "flashingEnabled": true,
-          "haltAfterReset": false,
+          "haltAfterReset": true,
           "formatOptions": {
             "format": "elf"
           }
@@ -22,9 +21,7 @@
         "coreConfigs": [
           {
             "coreIndex": 0,
-            //!MODIFY
             "programBinary": "${workspaceFolder}/app/target/thumbv6m-none-eabi/debug/canio",
-            //!MODIFY
             "svdFile": "${workspaceFolder}/app/STM32G0B1.svd",
             "rttEnabled": true,
             "rttChannelFormats": [

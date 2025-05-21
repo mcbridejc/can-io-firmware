@@ -1,0 +1,50 @@
+device_name = "RJMP can-io"
+
+[identity]
+vendor_id = 0xCAFE
+product_code = 32
+revision_number = 1
+
+[[objects]]
+index = 0x2000
+parameter_name = "Raw Analog Input"
+object_type = "array"
+data_type = "uint16"
+access_type = "ro"
+array_size = 4
+default_value = [0, 0, 0, 0]
+pdo_mapping = "tpdo"
+
+[[objects]]
+index = 0x2100
+parameter_name = "Analog Read Period (ms)"
+object_type = "var"
+data_type = "uint32"
+access_type = "rw"
+default_value = 10
+
+[[objects]]
+index = 0x2101
+parameter_name = "Analog Scale Config"
+object_type = "record"
+[[objects.subs]]
+sub_index = 1
+parameter_name = "Scale Numerator"
+data_type = "uint16"
+access_type = "rw"
+default_value = 1
+[[objects.subs]]
+sub_index = 2
+parameter_name = "Scale Denominator"
+data_type = "uint16"
+access_type = "rw"
+default_value = 1
+[[objects.subs]]
+sub_index = 3
+parameter_name = "Offset"
+data_type = "uint16"
+access_type = "rw"
+default_value = 0
+
+
+

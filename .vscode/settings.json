@@ -1,3 +1,4 @@
 {
-    "rust-analyzer.linkedProjects": ["app/Cargo.toml", "dma/Cargo.toml"],
+    "rust-analyzer.cargo.target": "thumbv6m-none-eabi",
+    "rust-analyzer.cargo.allTargets": false,
 }
