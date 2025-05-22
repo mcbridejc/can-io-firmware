@@ -14,6 +14,7 @@ use core::{
 };
 
 use lilos::{exec::Notify, time::Millis};
+use persist::SectionUpdate;
 use stm32_metapac::{self as pac, RCC, interrupt};
 
 use fdcan::{
@@ -23,13 +24,13 @@ use fdcan::{
 };
 
 use cortex_m_rt as _;
-use defmt_rtt as _;
+//use defmt_rtt as _;
+use rtt_target::{self as _, rtt_init, set_defmt_channel};
 use panic_probe as _;
 use zencan::OBJECT2000;
 use zencan_node::{
+    Node,
     common::{NodeId, objects::ObjectRawAccess},
-    node::Node,
-    node_mbox::NodeMboxWrite,
 };
 
 fn get_serial() -> u32 {
@@ -40,6 +41,9 @@ fn get_serial() -> u32 {
     let digest = ctx.compute();
     u32::from_le_bytes(digest.0[0..4].try_into().unwrap())
 }
+
+mod flash;
+mod persist;
 
 mod zencan {
     zencan_node::include_modules!(ZENCAN_CONFIG);
@@ -159,6 +163,46 @@ fn main() -> ! {
         w.set_gpiofen(true);
     });
 
+    let channels = rtt_init! {
+        up: {
+            0: {
+                size: 512,
+                name: "defmt",
+            }
+        }
+    };
+
+    set_defmt_channel(channels.up.0);
+
+    defmt::warn!("Doing flash things");
+
+    // The last two pages of flash are set aside for non-volatile storage
+    // Each page is 2kB
+    const FLASH_PAGE_A: usize = 62;
+    const FLASH_PAGE_B: usize = 63;
+    let mut flash = flash::Stm32g0Flash::new(pac::FLASH, FLASH_PAGE_A, FLASH_PAGE_B).unlock();
+
+    let mut counter = 0;
+    if let Some(sections) = persist::load_sections(&mut flash) {
+        for s in sections {
+            defmt::warn!("Got section {}", s.section_id);
+            defmt::warn!("Data: {:?}", s.data);
+            counter = *s.data.get(0).unwrap_or(&0);
+        }
+    } else {
+        defmt::warn!("No data found in flash");
+    }
+
+    counter += 1;
+    match persist::update_sections(&mut flash, &mut [SectionUpdate {
+        section_id: 0,
+        data: persist::UpdateSource::Slice(&[counter]),
+    }]) {
+        Ok(_) => defmt::warn!("Success (counter: {}", counter),
+        Err(_) => defmt::error!("Failed to write"),
+
+    }
+
     let gpios = crate::gpio::gpios();
 
     let can_rx_pin = gpios.PB8;
@@ -215,7 +259,7 @@ fn main() -> ! {
 
     zencan::NODE_MBOX.set_process_notify_callback(&notify_can_task);
 
-    let node = zencan_node::node::Node::new(
+    let node = Node::new(
         NodeId::new(1).unwrap(),
         &zencan::NODE_MBOX,
         &zencan::NODE_STATE,
@@ -229,6 +273,7 @@ fn main() -> ! {
         w.set_dbg_standby(true);
         w.set_dbg_stop(true);
     });
+    pac::RCC.ahbenr().modify(|w| w.set_dma1en(true));
 
     // Set up the OS timer. This can be done before or after starting the
     // scheduler, but must be done before using any timer features.
@@ -287,10 +332,10 @@ async fn main_task() -> Infallible {
 
         let adc_values = [read_adc(0), read_adc(1), read_adc(2), read_adc(3)];
 
-        for i in 0..4 {
-            OBJECT2000.set(i, adc_values[i]).unwrap();
-            OBJECT2000.set_event_flag(i as u8 + 1).unwrap();
-        }
+        // for i in 0..4 {
+        //     OBJECT2000.set(i, adc_values[i]).unwrap();
+        //     OBJECT2000.set_event_flag(i as u8 + 1).unwrap();
+        // }
 
         // Notify can task that there is something new to process
         CAN_NOTIFY.notify();

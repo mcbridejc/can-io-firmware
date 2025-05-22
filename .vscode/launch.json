@@ -21,8 +21,8 @@
         "coreConfigs": [
           {
             "coreIndex": 0,
-            "programBinary": "${workspaceFolder}/app/target/thumbv6m-none-eabi/debug/canio",
-            "svdFile": "${workspaceFolder}/app/STM32G0B1.svd",
+            "programBinary": "${workspaceFolder}/target/thumbv6m-none-eabi/debug/canio",
+            "svdFile": "${workspaceFolder}/STM32G0B1.svd",
             "rttEnabled": true,
             "rttChannelFormats": [
               {
