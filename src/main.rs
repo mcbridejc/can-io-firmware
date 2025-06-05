@@ -25,8 +25,8 @@ use fdcan::{
 
 use cortex_m_rt as _;
 //use defmt_rtt as _;
-use rtt_target::{self as _, rtt_init, set_defmt_channel};
 use panic_probe as _;
+use rtt_target::{self as _, rtt_init, set_defmt_channel};
 use zencan::OBJECT2000;
 use zencan_node::{
     Node,
@@ -194,13 +194,15 @@ fn main() -> ! {
     }
 
     counter += 1;
-    match persist::update_sections(&mut flash, &mut [SectionUpdate {
-        section_id: 0,
-        data: persist::UpdateSource::Slice(&[counter]),
-    }]) {
+    match persist::update_sections(
+        &mut flash,
+        &mut [SectionUpdate {
+            section_id: 0,
+            data: persist::UpdateSource::Slice(&[counter]),
+        }],
+    ) {
         Ok(_) => defmt::warn!("Success (counter: {}", counter),
         Err(_) => defmt::error!("Failed to write"),
-
     }
 
     let gpios = crate::gpio::gpios();
@@ -294,13 +296,14 @@ fn main() -> ! {
 /// A task for running the CAN node processing periodically, or when triggered by the CAN receive
 /// interrupt to run immediately
 async fn can_task(
-    mut node: Node<'static>,
+    mut node: Node,
     mut can_tx: fdcan::Tx<FdCan1, NormalOperationMode>,
 ) -> Infallible {
+    let epoch = lilos::time::TickTime::now();
     loop {
         lilos::time::with_timeout(Duration::from_millis(10), CAN_NOTIFY.until_next()).await;
-
-        node.process(&mut |msg| {
+        let time_us = epoch.elapsed().0 * 1000;
+        node.process(time_us, &mut |msg| {
             let id: fdcan::id::Id = match msg.id() {
                 zencan_node::common::messages::CanId::Extended(id) => {
                     fdcan::id::ExtendedId::new(id).unwrap().into()
@@ -332,10 +335,10 @@ async fn main_task() -> Infallible {
 
         let adc_values = [read_adc(0), read_adc(1), read_adc(2), read_adc(3)];
 
-        // for i in 0..4 {
-        //     OBJECT2000.set(i, adc_values[i]).unwrap();
-        //     OBJECT2000.set_event_flag(i as u8 + 1).unwrap();
-        // }
+        for i in 0..4 {
+            OBJECT2000.set(i, adc_values[i]).unwrap();
+            OBJECT2000.set_event_flag(i as u8 + 1).unwrap();
+        }
 
         // Notify can task that there is something new to process
         CAN_NOTIFY.notify();

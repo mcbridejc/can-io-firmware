@@ -1,13 +1,23 @@
-device_name = "RJMP can-io"
+device_name = "can-io"
 
 [identity]
 vendor_id = 0xCAFE
-product_code = 32
+product_code = 1032
 revision_number = 1
 
 [[objects]]
 index = 0x2000
 parameter_name = "Raw Analog Input"
+object_type = "array"
+data_type = "uint16"
+access_type = "ro"
+array_size = 4
+default_value = [0, 0, 0, 0]
+pdo_mapping = "tpdo"
+
+[[objects]]
+index = 0x2001
+parameter_name = "Scaled Analog Input"
 object_type = "array"
 data_type = "uint16"
 access_type = "ro"
