@@ -839,6 +839,7 @@ dependencies = [
 [[package]]
 name = "zencan-build"
 version = "0.1.0"
+source = "git+https://github.com/mcbridejc/zencan#8fbe059b3a60d37bf7ef9da95b5f0034307415e9"
 dependencies = [
  "prettyplease",
  "proc-macro2",
@@ -854,6 +855,7 @@ dependencies = [
 [[package]]
 name = "zencan-common"
 version = "0.1.0"
+source = "git+https://github.com/mcbridejc/zencan#8fbe059b3a60d37bf7ef9da95b5f0034307415e9"
 dependencies = [
  "critical-section",
  "crossbeam",
@@ -864,6 +866,7 @@ dependencies = [
 [[package]]
 name = "zencan-macro"
 version = "0.1.0"
+source = "git+https://github.com/mcbridejc/zencan#8fbe059b3a60d37bf7ef9da95b5f0034307415e9"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -875,6 +878,7 @@ dependencies = [
 [[package]]
 name = "zencan-node"
 version = "0.0.0"
+source = "git+https://github.com/mcbridejc/zencan#8fbe059b3a60d37bf7ef9da95b5f0034307415e9"
 dependencies = [
  "critical-section",
  "defmt-or-log",

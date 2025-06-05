@@ -17,10 +17,10 @@ panic-probe = { version = "1.0.0", features = ["print-defmt"] }
 rtt-target = { version = "0.6.1", features = ["defmt"] }
 stm32-metapac = { version = "15.0.0", features = ["stm32g0b1cb", "rt"] }
 
-zencan-node = { path = "../zencan/zencan-node", default-features = false}
+zencan-node = { git = "https://github.com/mcbridejc/zencan", default-features = false}
 
 [build-dependencies]
-zencan-build = { path = "../zencan/zencan-build" }
+zencan-build = { git = "https://github.com/mcbridejc/zencan" }
 
 [profile.dev]
 codegen-units = 1       # better optimizations
