@@ -50,7 +50,7 @@ zencan-cli only supports socketcan, so you need a CAN adapter that works with so
 
 Assuming you have a socketcan interface called 'can0', launch `zencan-cli`:
 
-```shell
+```
 zencan-cli can0
 ```
 
@@ -60,7 +60,7 @@ of the device. The first three numbers are configured in [zencan_config.toml](ze
 and will always be the same. The last one -- the serial -- is generated from the STM32 UID register,
 so it will be "random".
 
-```shell
+```
 can0>lss fastscan
 Found 1 unconfigured nodes
 0xcafe 0x408 0x1 0xbab9b0fc
@@ -68,7 +68,7 @@ Found 1 unconfigured nodes
 
 Then, you can copy the identifier and use it to assign a node ID to your device:
 
-```shell
+```
 can0>lss set-node-id 1 0xcafe 0x408 0x1 0xbab9b0fc
 Success!
 ```
@@ -77,7 +77,7 @@ Now, the device should be active and start sending heartbeat messages, which you
 `zencandump` utility. Also, you should be able to read some basic data from the node, using the
 `scan` command:
 
-```shell
+```
 can0>scan
 Node 10: PreOperational
     Identity vendor: CAFE, product: 408, revision: 1, serial: BAB9B0FC
@@ -88,7 +88,7 @@ Node 10: PreOperational
 
 To make the node ID change permanent, you need to issue one more command:
 
-```shell
+```
 can0>lss store-config 0xcafe 0x408 0x1 0xbab9b0fc
 ```
 
@@ -151,13 +151,13 @@ mappings = [
 
 Then, in `zencan-cli`, write the config parameters to the device:
 
-```shell
+```
 can0>load-config 10 example_node_config.toml
 ```
 
 Start the device operating, by issuing an NMT command:
 
-```shell
+```
 can0>nmt start all
 ```
 
@@ -166,7 +166,7 @@ respectively.
 
 To make the config changes permanent, save the object dictionary to flash:
 
-```shell
+```
 can0>save-objects 10
 ```
 
