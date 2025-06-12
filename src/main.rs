@@ -7,7 +7,10 @@
 #![no_main]
 
 use core::{
-    convert::Infallible, num::{NonZeroU16, NonZeroU8}, pin::pin, time::Duration
+    convert::Infallible,
+    num::{NonZeroU8, NonZeroU16},
+    pin::pin,
+    time::Duration,
 };
 
 use lilos::{exec::Notify, time::Millis};
@@ -24,9 +27,11 @@ use cortex_m_rt as _;
 //use defmt_rtt as _;
 use panic_probe as _;
 use rtt_target::{self as _, rtt_init, set_defmt_channel};
-use zencan::OBJECT2000;
+use zencan::{OBJECT2000, OBJECT2001, OBJECT2002, OBJECT2101};
 use zencan_node::{
-    common::{objects::ObjectRawAccess, NodeId}, restore_stored_objects, Node
+    Node,
+    common::{NodeId, objects::ObjectRawAccess},
+    restore_stored_objects,
 };
 
 fn get_serial() -> u32 {
@@ -76,7 +81,7 @@ static mut FLASH: Option<Stm32g0Flash> = None;
 enum FlashSections {
     NodeConfig = 1,
     Objects = 2,
-    Unknown = 256
+    Unknown = 256,
 }
 
 impl From<u8> for FlashSections {
@@ -93,12 +98,15 @@ impl From<u8> for FlashSections {
 fn store_objects(reader: &mut dyn embedded_io::Read<Error = Infallible>, size: usize) {
     // Safety: No other threads (i.e. IRQs) will use flash)
     let mut flash = unsafe { FLASH.as_mut().unwrap().unlock() };
-    if persist::update_sections(&mut flash, &mut [
-        SectionUpdate {
+    if persist::update_sections(
+        &mut flash,
+        &mut [SectionUpdate {
             section_id: FlashSections::Objects as u8,
             data: persist::UpdateSource::Reader((reader, size)),
-        }
-    ]).is_err() {
+        }],
+    )
+    .is_err()
+    {
         defmt::error!("Error storing objects to flash");
     }
 }
@@ -107,12 +115,15 @@ fn store_objects(reader: &mut dyn embedded_io::Read<Error = Infallible>, size: u
 fn store_node_config(id: &NodeId) {
     let mut flash = unsafe { FLASH.as_mut().unwrap().unlock() };
     let data = [id.raw()];
-    if persist::update_sections(&mut flash, &mut [
-        SectionUpdate {
+    if persist::update_sections(
+        &mut flash,
+        &mut [SectionUpdate {
             section_id: FlashSections::NodeConfig as u8,
             data: persist::UpdateSource::Slice(&data),
-        }
-    ]).is_err() {
+        }],
+    )
+    .is_err()
+    {
         defmt::error!("Error storing node config to flash");
     }
 }
@@ -178,7 +189,6 @@ fn read_adc(channel: usize) -> u16 {
 
     pac::ADC1.dr().read().regular_data()
 }
-
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
@@ -310,14 +320,14 @@ fn main() -> ! {
                     } else {
                         defmt::error!("Found zero length NodeConfig section");
                     }
-                },
+                }
                 FlashSections::Objects => {
                     defmt::info!("Loaded objects from flash");
                     restore_stored_objects(&zencan::OD_TABLE, s.data);
-                },
+                }
                 FlashSections::Unknown => {
                     defmt::warn!("Found unrecognized flash section {}", s.section_id);
-                },
+                }
             }
         }
     } else {
@@ -327,7 +337,6 @@ fn main() -> ! {
     if let Some(node_id) = node_id {
         node.set_node_id(node_id)
     }
-
 
     // Store the flash object in staticso it can be access by callbacks
     unsafe {
@@ -392,7 +401,8 @@ async fn can_task(
 
 /// Task for periodically reading the sensors
 async fn main_task() -> Infallible {
-    let mut read_interval = zencan::OBJECT2100.get_value();
+    const MAX_PERIOD: u32 = 5000;
+    let mut read_interval = zencan::OBJECT2100.get_value().max(MAX_PERIOD);
     let mut periodic_gate =
         lilos::time::PeriodicGate::new_shift(Millis(read_interval as u64), Millis(0));
 
@@ -402,8 +412,21 @@ async fn main_task() -> Infallible {
         let adc_values = [read_adc(0), read_adc(1), read_adc(2), read_adc(3)];
 
         for i in 0..4 {
+            let raw_value = adc_values[i];
             OBJECT2000.set(i, adc_values[i]).unwrap();
             OBJECT2000.set_event_flag(i as u8 + 1).unwrap();
+            let scale_num = OBJECT2101.get_scale_numerator() as i32;
+            let scale_den = OBJECT2101.get_scale_denominator() as i32;
+            let offset = OBJECT2101.get_offset() as i32;
+            let scaled_value = ((raw_value as i32 - offset).saturating_mul(scale_num)) / scale_den;
+
+            OBJECT2001.set(i, scaled_value as i32).unwrap();
+            OBJECT2002
+                .set(
+                    i,
+                    scaled_value.clamp(i16::MIN as i32, i16::MAX as i32) as i16,
+                )
+                .unwrap();
         }
 
         // Notify can task that there is something new to process
