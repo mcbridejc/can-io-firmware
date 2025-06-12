@@ -394,7 +394,9 @@ async fn can_task(
                 bit_rate_switching: false,
                 marker: None,
             };
-            can_tx.transmit(header, msg.data()).ok();
+            if let Err(_) = can_tx.transmit(header, msg.data()) {
+                defmt::error!("Error transmitting CAN message");
+            }
         });
     }
 }
@@ -454,9 +456,11 @@ fn TIM16_FDCAN_IT0() {
 
     let mut buffer = [0u8; 8];
 
-    if let Ok(msg) = rx.receive(&mut buffer) {
+
+    while let Ok(msg) = rx.receive(&mut buffer) {
         // ReceiveOverrun::unwrap() cannot fail
         let msg = msg.unwrap();
+
         let id = match msg.id {
             fdcan::id::Id::Standard(standard_id) => {
                 zencan_node::common::messages::CanId::std(standard_id.as_raw())
