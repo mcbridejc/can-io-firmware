@@ -1,6 +1,6 @@
 # can-io-firmware
 
-Software for a simple CAN IO board, with 4 analog inputs and a few GPIOs. Work-in-progress.
+Software for a simple CAN IO board, with 4 analog inputs and a few GPIOs, which is based on an STM32G0B1CB. It's a work-in-progress.
 
 Also serves as a demo for [zencan](https://github.com/mcbridejc/zencan).
 
