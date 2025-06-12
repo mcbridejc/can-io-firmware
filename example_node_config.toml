@@ -1,4 +1,22 @@
-# Configure a node to put data out on a PDO
+# Setup scale factors to offset analog 0 and analog 1 so that 0-4096 becomes -100 to 100
+# Scale numerator
+[[store]]
+index = 0x2101
+sub = 1
+type = "i16"
+value = 100
+# Scale denominator
+[[store]]
+index = 0x2101
+sub = 2
+type = "i16"
+value = 2048
+# Offset
+[[store]]
+index = 0x2101
+sub = 3
+type = "i16"
+value = -2048
 
 # Send all four raw analog values on 0x200
 [tpdo.0]
@@ -10,4 +28,16 @@ mappings = [
     { index=0x2000, sub=2, size=16 },
     { index=0x2000, sub=3, size=16 },
     { index=0x2000, sub=4, size=16 },
+]
+
+# Send all four scaled i16 analog values on 0x200
+[tpdo.1]
+enabled = true
+cob = 0x201
+transmission_type = 254
+mappings = [
+    { index=0x2002, sub=1, size=16 },
+    { index=0x2002, sub=2, size=16 },
+    { index=0x2002, sub=3, size=16 },
+    { index=0x2002, sub=4, size=16 },
 ]
