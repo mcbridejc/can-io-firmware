@@ -3,7 +3,7 @@
 #![allow(dead_code)]
 
 
-use core::{marker::PhantomData, ptr::slice_from_raw_parts, sync::atomic::{fence, Ordering}};
+use core::{ptr::slice_from_raw_parts, sync::atomic::{fence, Ordering}};
 
 use crate::{pac::flash::Flash, persist::{FlashAccess, Page}};
 
@@ -11,10 +11,15 @@ const PAGE_SIZE: usize = 2048;
 
 pub struct FlashError {}
 
-pub struct Locked {}
-pub struct Unlocked {}
-pub struct Stm32g0Flash<T> {
+pub struct Stm32g0Flash {
     flash: Flash,
+
+    page_a: usize,
+    page_b: usize,
+}
+
+pub struct Stm32g0FlashUnlocked<'a> {
+    flash: &'a Flash,
 
     cache: [u8; 8],
     active_page: Page,
@@ -23,54 +28,57 @@ pub struct Stm32g0Flash<T> {
     page_b: usize,
 
     write_pos: usize,
-
-    _marker: PhantomData<T>
 }
 
-impl Stm32g0Flash<Locked> {
+impl Stm32g0Flash {
     pub fn new(flash: Flash, page_a: usize, page_b: usize) -> Self {
         Self {
             flash,
-            cache: [0; 8],
-            active_page: Page::A,
             page_a,
             page_b,
-            write_pos: 0,
-            _marker: PhantomData::default(),
         }
     }
 
-    pub fn unlock(self) -> Stm32g0Flash<Unlocked> {
+    fn page_slice(&self, n: usize) -> &[u8] {
+        let addr = (crate::pac::FLASH_BASE + n * PAGE_SIZE) as *const u8;
+        // Safety: I don't think the flash is going anywhere
+        unsafe { slice_from_raw_parts(addr, PAGE_SIZE).as_ref().unwrap() }
+    }
+
+    pub fn page(&self, page: Page) -> &[u8] {
+        match page {
+            Page::A => self.page_slice(self.page_a),
+            Page::B => self.page_slice(self.page_b),
+        }
+    }
+
+    pub fn unlock<'a>(&'a mut self) -> Stm32g0FlashUnlocked<'a> {
         self.flash.keyr().write_value(0x45670123);
         self.flash.keyr().write_value(0xCDEF89AB);
-        Stm32g0Flash::<Unlocked> {
-            flash: self.flash,
-            cache: self.cache,
-            active_page: self.active_page,
+        Stm32g0FlashUnlocked {
+            flash: &self.flash,
+            cache: [0; 8],
+            active_page: Page::A,
             page_a: self.page_a,
             page_b: self.page_b,
-            write_pos: self.write_pos,
-            _marker: PhantomData::default(),
+            write_pos: 0,
         }
     }
 }
 
-impl Stm32g0Flash<Unlocked> {
-    pub fn lock(self) -> Stm32g0Flash<Locked> {
+impl<'a> Stm32g0FlashUnlocked<'a> {
+    pub fn lock(self) {
         self.flash.cr().modify(|w| w.set_lock(true));
-        Stm32g0Flash::<Locked> {
-            flash: self.flash,
-            cache: self.cache,
-            active_page: self.active_page,
-            page_a: self.page_a,
-            page_b: self.page_b,
-            write_pos: self.write_pos,
-            _marker: PhantomData::default(),
-        }
     }
 }
 
-impl<T> Stm32g0Flash<T> {
+impl<'a> Drop for Stm32g0FlashUnlocked<'a> {
+    fn drop(&mut self) {
+        self.flash.cr().modify(|w| w.set_lock(true));
+    }
+}
+
+impl<'a> Stm32g0FlashUnlocked<'a> {
     fn page_slice(&self, n: usize) -> &[u8] {
         let addr = (crate::pac::FLASH_BASE + n * PAGE_SIZE) as *const u8;
         // Safety: I don't think the flash is going anywhere
@@ -137,7 +145,7 @@ impl<T> Stm32g0Flash<T> {
 
 }
 
-impl FlashAccess for Stm32g0Flash<Unlocked> {
+impl<'a> FlashAccess for Stm32g0FlashUnlocked<'a> {
     type Error = FlashError;
 
     fn page(&self, page: Page) -> &[u8] {

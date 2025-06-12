@@ -7,10 +7,7 @@
 #![no_main]
 
 use core::{
-    convert::Infallible,
-    num::{NonZeroU8, NonZeroU16},
-    pin::pin,
-    time::Duration,
+    convert::Infallible, num::{NonZeroU16, NonZeroU8}, pin::pin, time::Duration
 };
 
 use lilos::{exec::Notify, time::Millis};
@@ -29,8 +26,7 @@ use panic_probe as _;
 use rtt_target::{self as _, rtt_init, set_defmt_channel};
 use zencan::OBJECT2000;
 use zencan_node::{
-    Node,
-    common::{NodeId, objects::ObjectRawAccess},
+    common::{objects::ObjectRawAccess, NodeId}, restore_stored_objects, Node
 };
 
 fn get_serial() -> u32 {
@@ -51,6 +47,8 @@ mod zencan {
 
 mod gpio;
 use gpio::Pin;
+
+use crate::flash::Stm32g0Flash;
 
 struct FdCan1 {}
 #[allow(dead_code)]
@@ -73,6 +71,51 @@ unsafe impl fdcan::Instance for FdCan2 {
 static mut CAN_RX: Option<Rx<FdCan1, NormalOperationMode, Fifo0>> = None;
 static mut CAN_CTRL: Option<FdCanControl<FdCan1, NormalOperationMode>> = None;
 static CAN_NOTIFY: Notify = Notify::new();
+static mut FLASH: Option<Stm32g0Flash> = None;
+
+enum FlashSections {
+    NodeConfig = 1,
+    Objects = 2,
+    Unknown = 256
+}
+
+impl From<u8> for FlashSections {
+    fn from(value: u8) -> Self {
+        match value {
+            1 => Self::NodeConfig,
+            2 => Self::Objects,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+#[allow(static_mut_refs)]
+fn store_objects(reader: &mut dyn embedded_io::Read<Error = Infallible>, size: usize) {
+    // Safety: No other threads (i.e. IRQs) will use flash)
+    let mut flash = unsafe { FLASH.as_mut().unwrap().unlock() };
+    if persist::update_sections(&mut flash, &mut [
+        SectionUpdate {
+            section_id: FlashSections::Objects as u8,
+            data: persist::UpdateSource::Reader((reader, size)),
+        }
+    ]).is_err() {
+        defmt::error!("Error storing objects to flash");
+    }
+}
+
+#[allow(static_mut_refs)]
+fn store_node_config(id: &NodeId) {
+    let mut flash = unsafe { FLASH.as_mut().unwrap().unlock() };
+    let data = [id.raw()];
+    if persist::update_sections(&mut flash, &mut [
+        SectionUpdate {
+            section_id: FlashSections::NodeConfig as u8,
+            data: persist::UpdateSource::Slice(&data),
+        }
+    ]).is_err() {
+        defmt::error!("Error storing node config to flash");
+    }
+}
 
 fn notify_can_task() {
     CAN_NOTIFY.notify();
@@ -136,6 +179,7 @@ fn read_adc(channel: usize) -> u16 {
     pac::ADC1.dr().read().regular_data()
 }
 
+
 #[cortex_m_rt::entry]
 fn main() -> ! {
     // Check out peripherals from the runtime.
@@ -174,36 +218,11 @@ fn main() -> ! {
 
     set_defmt_channel(channels.up.0);
 
-    defmt::warn!("Doing flash things");
-
     // The last two pages of flash are set aside for non-volatile storage
     // Each page is 2kB
     const FLASH_PAGE_A: usize = 62;
     const FLASH_PAGE_B: usize = 63;
-    let mut flash = flash::Stm32g0Flash::new(pac::FLASH, FLASH_PAGE_A, FLASH_PAGE_B).unlock();
-
-    let mut counter = 0;
-    if let Some(sections) = persist::load_sections(&mut flash) {
-        for s in sections {
-            defmt::warn!("Got section {}", s.section_id);
-            defmt::warn!("Data: {:?}", s.data);
-            counter = *s.data.get(0).unwrap_or(&0);
-        }
-    } else {
-        defmt::warn!("No data found in flash");
-    }
-
-    counter += 1;
-    match persist::update_sections(
-        &mut flash,
-        &mut [SectionUpdate {
-            section_id: 0,
-            data: persist::UpdateSource::Slice(&[counter]),
-        }],
-    ) {
-        Ok(_) => defmt::warn!("Success (counter: {}", counter),
-        Err(_) => defmt::error!("Failed to write"),
-    }
+    let mut flash = flash::Stm32g0Flash::new(pac::FLASH, FLASH_PAGE_A, FLASH_PAGE_B);
 
     let gpios = crate::gpio::gpios();
 
@@ -261,15 +280,63 @@ fn main() -> ! {
 
     zencan::NODE_MBOX.set_process_notify_callback(&notify_can_task);
 
-    let node = Node::new(
-        NodeId::new(1).unwrap(),
+    // Use the UID register to set a unique serial number
+    zencan::OBJECT1018.set_serial(get_serial());
+
+    let mut node = Node::new(
+        NodeId::Unconfigured,
         &zencan::NODE_MBOX,
         &zencan::NODE_STATE,
         &zencan::OD_TABLE,
     );
 
-    // Use the UID register to set a unique serial number
-    zencan::OBJECT1018.set_serial(get_serial());
+    // Load persistent data from flash It's important to do this after instantiating `Node`, because
+    // some of the restored objects (e.g. PDO config) require that callbacks be registered before
+    // they can be accessed.
+    let mut node_id = None;
+    if let Some(sections) = persist::load_sections(&flash.unlock()) {
+        for s in sections {
+            let section_type = FlashSections::from(s.section_id);
+            match section_type {
+                FlashSections::NodeConfig => {
+                    if s.data.len() > 0 {
+                        node_id = match NodeId::try_from(s.data[0]) {
+                            Ok(node_id) => Some(node_id),
+                            Err(_) => {
+                                defmt::error!("Read invalid node_id {} from flash", s.data[0]);
+                                None
+                            }
+                        }
+                    } else {
+                        defmt::error!("Found zero length NodeConfig section");
+                    }
+                },
+                FlashSections::Objects => {
+                    defmt::info!("Loaded objects from flash");
+                    restore_stored_objects(&zencan::OD_TABLE, s.data);
+                },
+                FlashSections::Unknown => {
+                    defmt::warn!("Found unrecognized flash section {}", s.section_id);
+                },
+            }
+        }
+    } else {
+        defmt::warn!("No data found in flash");
+    }
+
+    if let Some(node_id) = node_id {
+        node.set_node_id(node_id)
+    }
+
+
+    // Store the flash object in staticso it can be access by callbacks
+    unsafe {
+        FLASH = Some(flash);
+    }
+
+    // Register handlers for saving node data to flash
+    node.register_store_objects(&store_objects);
+    node.register_store_node_config(&store_node_config);
 
     pac::DBGMCU.cr().modify(|w| {
         w.set_dbg_standby(true);
@@ -282,7 +349,6 @@ fn main() -> ! {
     lilos::time::initialize_sys_tick(&mut cp.SYST, 16_000_000);
 
     unsafe { cortex_m::interrupt::enable() };
-
     unsafe { cortex_m::peripheral::NVIC::unmask(pac::Interrupt::TIM16_FDCAN_IT0) };
 
     // Run our four tasks in parallel. The final parameter specifies which tasks

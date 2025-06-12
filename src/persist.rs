@@ -146,7 +146,7 @@ fn read_page<E>(flash: &dyn FlashAccess<Error = E>, page: Page) -> Option<&'stat
         // Safety: Converting slice lifetime to 'static is fine, flash will be there
         Some(unsafe { core::mem::transmute(&data[PAGE_HEADER_SIZE..chk_offset]) })
     } else {
-        defmt::warn!("Failed persist checksum");
+        defmt::warn!("Failed persist checksum. Computed: 0x{:x}, read: 0x{:x}", chk, readback_chk);
         None
     }
 }
