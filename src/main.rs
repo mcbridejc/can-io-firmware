@@ -416,11 +416,10 @@ async fn main_task() -> Infallible {
         for i in 0..4 {
             let raw_value = adc_values[i];
             OBJECT2000.set(i, adc_values[i]).unwrap();
-            OBJECT2000.set_event_flag(i as u8 + 1).unwrap();
             let scale_num = OBJECT2101.get_scale_numerator() as i32;
             let scale_den = OBJECT2101.get_scale_denominator() as i32;
             let offset = OBJECT2101.get_offset() as i32;
-            let scaled_value = ((raw_value as i32 - offset).saturating_mul(scale_num)) / scale_den;
+            let scaled_value = ((raw_value as i32 + offset).saturating_mul(scale_num)) / scale_den;
 
             OBJECT2001.set(i, scaled_value as i32).unwrap();
             OBJECT2002
@@ -429,6 +428,10 @@ async fn main_task() -> Infallible {
                     scaled_value.clamp(i16::MIN as i32, i16::MAX as i32) as i16,
                 )
                 .unwrap();
+
+            OBJECT2000.set_event_flag(i as u8 + 1).unwrap();
+            OBJECT2001.set_event_flag(i as u8 + 1).unwrap();
+            OBJECT2002.set_event_flag(i as u8 + 1).unwrap();
         }
 
         // Notify can task that there is something new to process
