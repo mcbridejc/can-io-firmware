@@ -1,0 +1,13 @@
+# Configure a node to put data out on a PDO
+
+# Send all four raw analog values on 0x200
+[tpdo.0]
+enabled = true
+cob = 0x200
+transmission_type = 254
+mappings = [
+    { index=0x2000, sub=1, size=16 },
+    { index=0x2000, sub=2, size=16 },
+    { index=0x2000, sub=3, size=16 },
+    { index=0x2000, sub=4, size=16 },
+]
