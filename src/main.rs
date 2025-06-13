@@ -190,6 +190,32 @@ fn read_adc(channel: usize) -> u16 {
     pac::ADC1.dr().read().regular_data()
 }
 
+fn read_saved_node_id(flash: &mut Stm32g0Flash) -> NodeId {
+    if let Some(sections) = persist::load_sections(&flash.unlock()) {
+        for s in sections {
+            let section_type = FlashSections::from(s.section_id);
+            match section_type {
+                FlashSections::NodeConfig => {
+                    if s.data.len() > 0 {
+                        match NodeId::try_from(s.data[0]) {
+                            Ok(node_id) => return node_id,
+                            Err(_) => {
+                                defmt::error!("Read invalid node_id {} from flash", s.data[0]);
+                                break;
+                            }
+                        }
+                    } else {
+                        defmt::error!("Found zero length NodeConfig section");
+                    }
+                }
+                _ => continue,
+            }
+        }
+    }
+
+    NodeId::Unconfigured
+}
+
 #[cortex_m_rt::entry]
 fn main() -> ! {
     // Check out peripherals from the runtime.
@@ -290,37 +316,26 @@ fn main() -> ! {
 
     zencan::NODE_MBOX.set_process_notify_callback(&notify_can_task);
 
-    // Use the UID register to set a unique serial number
-    zencan::OBJECT1018.set_serial(get_serial());
+    let node_id = read_saved_node_id(&mut flash);
 
-    let mut node = Node::new(
-        NodeId::Unconfigured,
+    let initnode = Node::init(
+        node_id,
         &zencan::NODE_MBOX,
         &zencan::NODE_STATE,
         &zencan::OD_TABLE,
     );
 
-    // Load persistent data from flash It's important to do this after instantiating `Node`, because
+    // Use the UID register to set a unique serial number
+    zencan::OBJECT1018.set_serial(get_serial());
+
+    // Load persistent data from flash It's important to do this after calling Node::init,, because
     // some of the restored objects (e.g. PDO config) require that callbacks be registered before
     // they can be accessed.
-    let mut node_id = None;
     if let Some(sections) = persist::load_sections(&flash.unlock()) {
         for s in sections {
             let section_type = FlashSections::from(s.section_id);
             match section_type {
-                FlashSections::NodeConfig => {
-                    if s.data.len() > 0 {
-                        node_id = match NodeId::try_from(s.data[0]) {
-                            Ok(node_id) => Some(node_id),
-                            Err(_) => {
-                                defmt::error!("Read invalid node_id {} from flash", s.data[0]);
-                                None
-                            }
-                        }
-                    } else {
-                        defmt::error!("Found zero length NodeConfig section");
-                    }
-                }
+                FlashSections::NodeConfig => (), // Ignore
                 FlashSections::Objects => {
                     defmt::info!("Loaded objects from flash");
                     restore_stored_objects(&zencan::OD_TABLE, s.data);
@@ -331,17 +346,15 @@ fn main() -> ! {
             }
         }
     } else {
-        defmt::warn!("No data found in flash");
+        defmt::info!("No data found in flash");
     }
 
-    if let Some(node_id) = node_id {
-        node.set_node_id(node_id)
-    }
-
-    // Store the flash object in staticso it can be access by callbacks
+    // Store the flash object in static so it can be access by callbacks
     unsafe {
         FLASH = Some(flash);
     }
+
+    let mut node = initnode.finalize();
 
     // Register handlers for saving node data to flash
     node.register_store_objects(&store_objects);
@@ -368,6 +381,24 @@ fn main() -> ! {
     )
 }
 
+fn zencan_to_fdcan_header(msg: &zencan_node::common::CanMessage) -> fdcan::frame::TxFrameHeader {
+    let id: fdcan::id::Id = match msg.id() {
+        zencan_node::common::messages::CanId::Extended(id) => {
+            fdcan::id::ExtendedId::new(id).unwrap().into()
+        }
+        zencan_node::common::messages::CanId::Std(id) => {
+            fdcan::id::StandardId::new(id).unwrap().into()
+        }
+    };
+    fdcan::frame::TxFrameHeader {
+        len: msg.dlc,
+        frame_format: fdcan::frame::FrameFormat::Standard,
+        id,
+        bit_rate_switching: false,
+        marker: None,
+    }
+}
+
 /// A task for running the CAN node processing periodically, or when triggered by the CAN receive
 /// interrupt to run immediately
 async fn can_task(
@@ -379,21 +410,7 @@ async fn can_task(
         lilos::time::with_timeout(Duration::from_millis(10), CAN_NOTIFY.until_next()).await;
         let time_us = epoch.elapsed().0 * 1000;
         node.process(time_us, &mut |msg| {
-            let id: fdcan::id::Id = match msg.id() {
-                zencan_node::common::messages::CanId::Extended(id) => {
-                    fdcan::id::ExtendedId::new(id).unwrap().into()
-                }
-                zencan_node::common::messages::CanId::Std(id) => {
-                    fdcan::id::StandardId::new(id).unwrap().into()
-                }
-            };
-            let header = fdcan::frame::TxFrameHeader {
-                len: msg.dlc,
-                frame_format: fdcan::frame::FrameFormat::Standard,
-                id,
-                bit_rate_switching: false,
-                marker: None,
-            };
+            let header = zencan_to_fdcan_header(&msg);
             if let Err(_) = can_tx.transmit(header, msg.data()) {
                 defmt::error!("Error transmitting CAN message");
             }
@@ -458,7 +475,6 @@ fn TIM16_FDCAN_IT0() {
     ctrl.clear_interrupt(fdcan::interrupt::Interrupt::RxFifo0NewMsg);
 
     let mut buffer = [0u8; 8];
-
 
     while let Ok(msg) = rx.receive(&mut buffer) {
         // ReceiveOverrun::unwrap() cannot fail

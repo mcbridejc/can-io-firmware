@@ -2,10 +2,15 @@
 
 #![allow(dead_code)]
 
+use core::{
+    ptr::slice_from_raw_parts,
+    sync::atomic::{Ordering, fence},
+};
 
-use core::{ptr::slice_from_raw_parts, sync::atomic::{fence, Ordering}};
-
-use crate::{pac::flash::Flash, persist::{FlashAccess, Page}};
+use crate::{
+    pac::flash::Flash,
+    persist::{FlashAccess, Page},
+};
 
 const PAGE_SIZE: usize = 2048;
 
@@ -142,7 +147,6 @@ impl<'a> Stm32g0FlashUnlocked<'a> {
         // note: bsy() here is bsy1, bit 16
         while self.flash.sr().read().bsy() {}
     }
-
 }
 
 impl<'a> FlashAccess for Stm32g0FlashUnlocked<'a> {
@@ -185,7 +189,7 @@ impl<'a> FlashAccess for Stm32g0FlashUnlocked<'a> {
         while in_pos < data.len() {
             let buf_pos = self.write_pos % 8;
             let to_copy = (8 - buf_pos).min(data.len() - in_pos);
-            self.cache[buf_pos..buf_pos+to_copy].copy_from_slice(&data[in_pos..in_pos+to_copy]);
+            self.cache[buf_pos..buf_pos + to_copy].copy_from_slice(&data[in_pos..in_pos + to_copy]);
             in_pos += to_copy;
             self.write_pos += to_copy;
             if self.write_pos % 8 == 0 {

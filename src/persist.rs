@@ -146,7 +146,11 @@ fn read_page<E>(flash: &dyn FlashAccess<Error = E>, page: Page) -> Option<&'stat
         // Safety: Converting slice lifetime to 'static is fine, flash will be there
         Some(unsafe { core::mem::transmute(&data[PAGE_HEADER_SIZE..chk_offset]) })
     } else {
-        defmt::warn!("Failed persist checksum. Computed: 0x{:x}, read: 0x{:x}", chk, readback_chk);
+        defmt::warn!(
+            "Failed persist checksum. Computed: 0x{:x}, read: 0x{:x}",
+            chk,
+            readback_chk
+        );
         None
     }
 }
@@ -269,8 +273,8 @@ pub fn update_sections<E>(
     if let Some(read_page) = read_page {
         let existing_sections = SectionIterator::new(read_page);
         for section in existing_sections {
-             // Skip any sections we are currently updating
-             if sections.iter().any(|s| s.section_id == section.section_id) {
+            // Skip any sections we are currently updating
+            if sections.iter().any(|s| s.section_id == section.section_id) {
                 continue;
             }
             // +1 for the section id, +2 for the length header

@@ -3,8 +3,8 @@
 #![allow(dead_code)]
 #![macro_use]
 
-use crate::pac::gpio::{self, vals};
 use crate::pac;
+use crate::pac::gpio::{self, vals};
 
 /// A pin object which stores info about the GPIO is controls
 pub struct DynamicPin {
@@ -12,8 +12,7 @@ pub struct DynamicPin {
 }
 
 /// Pull setting for an input.
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-#[derive(defmt::Format)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, defmt::Format)]
 pub enum Pull {
     /// No pull
     None,
@@ -73,8 +72,7 @@ impl Pin for DynamicPin {
 }
 
 /// Digital input or output level.
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-#[derive(defmt::Format)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, defmt::Format)]
 pub enum Level {
     /// Low
     Low,
@@ -100,7 +98,6 @@ impl From<Level> for bool {
     }
 }
 
-
 /// GPIO output type
 pub enum OutputType {
     /// Drive the pin both high or low.
@@ -109,10 +106,8 @@ pub enum OutputType {
     OpenDrain,
 }
 
-
 /// Alternate function type settings
-#[derive(Debug, Copy, Clone)]
-#[derive(defmt::Format)]
+#[derive(Debug, Copy, Clone, defmt::Format)]
 pub enum AFType {
     /// Input
     Input,
@@ -122,9 +117,8 @@ pub enum AFType {
     OutputOpenDrain,
 }
 
-
 #[allow(dead_code)]
-pub trait Pin: Into<DynamicPin> + PinPort +  Sized + 'static {
+pub trait Pin: Into<DynamicPin> + PinPort + Sized + 'static {
     #[inline]
     fn _pin(&self) -> u8 {
         self.pin_port() % 16
@@ -166,18 +160,24 @@ pub trait Pin: Into<DynamicPin> + PinPort +  Sized + 'static {
         match af_type {
             AFType::Input => {}
             AFType::OutputPushPull => block.otyper().modify(|w| w.set_ot(pin, vals::Ot::PUSHPULL)),
-            AFType::OutputOpenDrain => block.otyper().modify(|w| w.set_ot(pin, vals::Ot::OPENDRAIN)),
+            AFType::OutputOpenDrain => block
+                .otyper()
+                .modify(|w| w.set_ot(pin, vals::Ot::OPENDRAIN)),
         }
         block.pupdr().modify(|w| w.set_pupdr(pin, pull.into()));
 
-        block.moder().modify(|w| w.set_moder(pin, vals::Moder::ALTERNATE));
+        block
+            .moder()
+            .modify(|w| w.set_moder(pin, vals::Moder::ALTERNATE));
     }
 
     #[inline]
     fn set_as_analog(&self) {
         let pin = self._pin() as usize;
         let block = self.block();
-        block.moder().modify(|w| w.set_moder(pin, vals::Moder::ANALOG));
+        block
+            .moder()
+            .modify(|w| w.set_moder(pin, vals::Moder::ANALOG));
     }
 
     /// Set the pin as "disconnected", ie doing nothing and consuming the lowest
@@ -194,7 +194,9 @@ pub trait Pin: Into<DynamicPin> + PinPort +  Sized + 'static {
     fn set_speed(&self, speed: Speed) {
         let pin = self._pin() as usize;
 
-        self.block().ospeedr().modify(|w| w.set_ospeedr(pin, speed.into()));
+        self.block()
+            .ospeedr()
+            .modify(|w| w.set_ospeedr(pin, speed.into()));
     }
 
     /// Number of the pin within the port (0..31)
@@ -248,8 +250,7 @@ pub trait Pin: Into<DynamicPin> + PinPort +  Sized + 'static {
     }
 }
 
-pub struct Gpio<const PIN_PORT: u8> {
-}
+pub struct Gpio<const PIN_PORT: u8> {}
 
 pub type PA0 = Gpio<0>;
 pub type PA1 = Gpio<1>;
@@ -268,56 +269,56 @@ pub type PA13 = Gpio<13>;
 pub type PA14 = Gpio<14>;
 pub type PA15 = Gpio<15>;
 
-pub type PB0 = Gpio<{(1<<4) + 0}>;
-pub type PB1 = Gpio<{(1<<4) + 1}>;
-pub type PB2 = Gpio<{(1<<4) + 2}>;
-pub type PB3 = Gpio<{(1<<4) + 3}>;
-pub type PB4 = Gpio<{(1<<4) + 4}>;
-pub type PB5 = Gpio<{(1<<4) + 5}>;
-pub type PB6 = Gpio<{(1<<4) + 6}>;
-pub type PB7 = Gpio<{(1<<4) + 7}>;
-pub type PB8 = Gpio<{(1<<4) + 8}>;
-pub type PB9 = Gpio<{(1<<4) + 9}>;
-pub type PB10 = Gpio<{(1<<4) + 10}>;
-pub type PB11 = Gpio<{(1<<4) + 11}>;
-pub type PB12 = Gpio<{(1<<4) + 12}>;
-pub type PB13 = Gpio<{(1<<4) + 13}>;
-pub type PB14 = Gpio<{(1<<4) + 14}>;
-pub type PB15 = Gpio<{(1<<4) + 15}>;
+pub type PB0 = Gpio<{ (1 << 4) + 0 }>;
+pub type PB1 = Gpio<{ (1 << 4) + 1 }>;
+pub type PB2 = Gpio<{ (1 << 4) + 2 }>;
+pub type PB3 = Gpio<{ (1 << 4) + 3 }>;
+pub type PB4 = Gpio<{ (1 << 4) + 4 }>;
+pub type PB5 = Gpio<{ (1 << 4) + 5 }>;
+pub type PB6 = Gpio<{ (1 << 4) + 6 }>;
+pub type PB7 = Gpio<{ (1 << 4) + 7 }>;
+pub type PB8 = Gpio<{ (1 << 4) + 8 }>;
+pub type PB9 = Gpio<{ (1 << 4) + 9 }>;
+pub type PB10 = Gpio<{ (1 << 4) + 10 }>;
+pub type PB11 = Gpio<{ (1 << 4) + 11 }>;
+pub type PB12 = Gpio<{ (1 << 4) + 12 }>;
+pub type PB13 = Gpio<{ (1 << 4) + 13 }>;
+pub type PB14 = Gpio<{ (1 << 4) + 14 }>;
+pub type PB15 = Gpio<{ (1 << 4) + 15 }>;
 
-pub type PC0 = Gpio<{(2<<4) + 0}>;
-pub type PC1 = Gpio<{(2<<4) + 1}>;
-pub type PC2 = Gpio<{(2<<4) + 2}>;
-pub type PC3 = Gpio<{(2<<4) + 3}>;
-pub type PC4 = Gpio<{(2<<4) + 4}>;
-pub type PC5 = Gpio<{(2<<4) + 5}>;
-pub type PC6 = Gpio<{(2<<4) + 6}>;
-pub type PC7 = Gpio<{(2<<4) + 7}>;
-pub type PC8 = Gpio<{(2<<4) + 8}>;
-pub type PC9 = Gpio<{(2<<4) + 9}>;
-pub type PC10 = Gpio<{(2<<4) + 10}>;
-pub type PC11 = Gpio<{(2<<4) + 11}>;
-pub type PC12 = Gpio<{(2<<4) + 12}>;
-pub type PC13 = Gpio<{(2<<4) + 13}>;
-pub type PC14 = Gpio<{(2<<4) + 14}>;
-pub type PC15 = Gpio<{(2<<4) + 15}>;
+pub type PC0 = Gpio<{ (2 << 4) + 0 }>;
+pub type PC1 = Gpio<{ (2 << 4) + 1 }>;
+pub type PC2 = Gpio<{ (2 << 4) + 2 }>;
+pub type PC3 = Gpio<{ (2 << 4) + 3 }>;
+pub type PC4 = Gpio<{ (2 << 4) + 4 }>;
+pub type PC5 = Gpio<{ (2 << 4) + 5 }>;
+pub type PC6 = Gpio<{ (2 << 4) + 6 }>;
+pub type PC7 = Gpio<{ (2 << 4) + 7 }>;
+pub type PC8 = Gpio<{ (2 << 4) + 8 }>;
+pub type PC9 = Gpio<{ (2 << 4) + 9 }>;
+pub type PC10 = Gpio<{ (2 << 4) + 10 }>;
+pub type PC11 = Gpio<{ (2 << 4) + 11 }>;
+pub type PC12 = Gpio<{ (2 << 4) + 12 }>;
+pub type PC13 = Gpio<{ (2 << 4) + 13 }>;
+pub type PC14 = Gpio<{ (2 << 4) + 14 }>;
+pub type PC15 = Gpio<{ (2 << 4) + 15 }>;
 
-pub type PD0 = Gpio<{(3<<4) + 0}>;
-pub type PD1 = Gpio<{(3<<4) + 1}>;
-pub type PD2 = Gpio<{(3<<4) + 2}>;
-pub type PD3 = Gpio<{(3<<4) + 3}>;
-pub type PD4 = Gpio<{(3<<4) + 4}>;
-pub type PD5 = Gpio<{(3<<4) + 5}>;
-pub type PD6 = Gpio<{(3<<4) + 6}>;
-pub type PD7 = Gpio<{(3<<4) + 7}>;
-pub type PD8 = Gpio<{(3<<4) + 8}>;
-pub type PD9 = Gpio<{(3<<4) + 9}>;
-pub type PD10 = Gpio<{(3<<4) + 10}>;
-pub type PD11 = Gpio<{(3<<4) + 11}>;
-pub type PD12 = Gpio<{(3<<4) + 12}>;
-pub type PD13 = Gpio<{(3<<4) + 13}>;
-pub type PD14 = Gpio<{(3<<4) + 14}>;
-pub type PD15 = Gpio<{(3<<4) + 15}>;
+pub type PD0 = Gpio<{ (3 << 4) + 0 }>;
+pub type PD1 = Gpio<{ (3 << 4) + 1 }>;
+pub type PD2 = Gpio<{ (3 << 4) + 2 }>;
+pub type PD3 = Gpio<{ (3 << 4) + 3 }>;
+pub type PD4 = Gpio<{ (3 << 4) + 4 }>;
+pub type PD5 = Gpio<{ (3 << 4) + 5 }>;
+pub type PD6 = Gpio<{ (3 << 4) + 6 }>;
+pub type PD7 = Gpio<{ (3 << 4) + 7 }>;
+pub type PD8 = Gpio<{ (3 << 4) + 8 }>;
+pub type PD9 = Gpio<{ (3 << 4) + 9 }>;
+pub type PD10 = Gpio<{ (3 << 4) + 10 }>;
+pub type PD11 = Gpio<{ (3 << 4) + 11 }>;
+pub type PD12 = Gpio<{ (3 << 4) + 12 }>;
+pub type PD13 = Gpio<{ (3 << 4) + 13 }>;
+pub type PD14 = Gpio<{ (3 << 4) + 14 }>;
+pub type PD15 = Gpio<{ (3 << 4) + 15 }>;
 
 pub trait PinPort {
     fn pin_port(&self) -> u8;
@@ -331,13 +332,13 @@ impl<const PIN_PORT: u8> PinPort for Gpio<PIN_PORT> {
 
 impl<const PIN_PORT: u8> From<Gpio<PIN_PORT>> for DynamicPin {
     fn from(value: Gpio<PIN_PORT>) -> Self {
-        DynamicPin { pin_port: value.pin_port() }
+        DynamicPin {
+            pin_port: value.pin_port(),
+        }
     }
 }
 
-impl<const PIN_PORT: u8> Pin for Gpio<PIN_PORT> {
-
-}
+impl<const PIN_PORT: u8> Pin for Gpio<PIN_PORT> {}
 
 #[allow(non_snake_case, dead_code)]
 pub struct Gpios {
